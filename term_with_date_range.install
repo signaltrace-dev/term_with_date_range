@@ -1,0 +1,110 @@
+<?php
+
+/**
+* Implements hook_field_schema()
+*/
+function term_with_date_range_field_schema($field){
+  return array(
+    'columns' => array(
+      'term_range_id' => array(
+        'description' => 'The primary identifier for a term with date range entry.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'tid' => array(
+        'type' => 'int',
+        'length' => 'small',
+        'not null' => FALSE,
+        'sortable' => TRUE,
+        'views' => TRUE,
+      ),
+      'date_from' => array(
+        'type' => 'datetime',
+        'mysql_type' => 'datetime',
+        'pgsql_type' => 'timestamp without time zone',
+        'sqlite_type' => 'varchar',
+        'sqlsrv_type' => 'smalldatetime',
+        'not null' => FALSE,
+        'sortable' => TRUE,
+        'views' => TRUE,
+      ),
+      'date_to' => array(
+        'type' => 'datetime',
+        'mysql_type' => 'datetime',
+        'pgsql_type' => 'timestamp without time zone',
+        'sqlite_type' => 'varchar',
+        'sqlsrv_type' => 'smalldatetime',
+        'not null' => FALSE,
+        'sortable' => TRUE,
+        'views' => TRUE,
+      ),
+      'date_from_timestamp' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'sortable' => TRUE,
+        'views' => TRUE,
+        'default' => 0,
+      ),
+      'date_to_timestamp' => array(
+        'type' => 'int',
+        'not null' => FALSE,
+        'sortable' => TRUE,
+        'views' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'term_range_id' => array('term_range_id'),
+    ),
+    'foreign_keys' => array(
+      'tid' => array(
+        'table' => 'taxonomy_term_data',
+        'columns' => array('tid' => 'tid'),
+      ),
+    ),
+  );
+}
+
+/**
+* Add timestamp fields to field data tables.
+*/
+function term_with_date_range_update_7101(){
+
+  $date_from_timestamp = array(
+    'type' => 'int',
+    'not null' => FALSE,
+    'sortable' => TRUE,
+    'views' => TRUE,
+    'default' => 0,
+  );
+
+  $date_to_timestamp = array(
+    'type' => 'int',
+    'not null' => FALSE,
+    'sortable' => TRUE,
+    'views' => TRUE,
+    'default' => 0,
+  );
+
+  $fields = term_with_date_range_get_fields();
+  foreach ($fields as $field) {
+    $tables = array(
+      _field_sql_storage_tablename($field),
+      _field_sql_storage_revision_tablename($field)
+    );
+    foreach ($tables as $table) {
+      $field_name = $field['field_name'];
+      $col_date_from = $field_name . '_date_from';
+      $col_date_to = $field_name . '_date_to';
+
+      $query = db_select($table, 't')
+        ->fields('t', array('nid', $col_date_from, $col_date_to));
+      $results = $query->execute();
+
+      db_add_field($table, $field_name . '_date_from_timestamp', $date_from_timestamp);
+      db_add_field($table, $field_name . '_date_to_timestamp', $date_to_timestamp);
+
+    }
+  }
+}
