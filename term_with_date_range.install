@@ -98,9 +98,6 @@ function term_with_date_range_update_7101(){
       $col_date_from = $field_name . '_date_from';
       $col_date_to = $field_name . '_date_to';
 
-      $query = db_select($table, 't')
-        ->fields('t', array('nid', $col_date_from, $col_date_to));
-      $results = $query->execute();
 
       db_add_field($table, $field_name . '_date_from_timestamp', $date_from_timestamp);
       db_add_field($table, $field_name . '_date_to_timestamp', $date_to_timestamp);

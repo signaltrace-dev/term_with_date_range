@@ -2,6 +2,7 @@
 
 function term_with_date_range_init() {
   drupal_add_css(drupal_get_path('module', 'term_with_date_range') . '/css/term_with_date_range.css', array('weight' => CSS_THEME));
+
 }
 
 function term_with_date_range_update_old_fields(){
@@ -187,7 +188,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
             $wrapper_class = !empty($instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_wrapper_class']) ? $instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_wrapper_class'] : '';
             $label = !empty($instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_label']) ? $instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_label'] : $label;
 
-            $options = array('0' => '-None-');
+            $options = array('_none' => '-None-');
             $terms = taxonomy_get_tree($vid);
             foreach ($terms as $term) {
               $options[$term->tid] = $term->name;
@@ -220,7 +221,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
               '#type' => $date_select_type,
               '#title' => $label,
               '#date_format' => $date_format,
-              '#date_year_range' => '-1:+3',
+              '#date_year_range' => '-5:+3',
               '#default_value' => isset($items[$delta][$key]) ? $items[$delta][$key] : 0,
               '#attributes' => array(
                 'class' => array(
@@ -242,7 +243,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
               '#title' => $label,
               '#date_format' => $date_format,
               '#date_increment' => 1,
-              '#date_year_range' => '-1:+3',
+              '#date_year_range' => '-5:+3',
               '#default_value' => isset($items[$delta][$key]) ? $items[$delta][$key] : 0,
               '#attributes' => array(
                 'class' => array(
@@ -264,8 +265,8 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#title' => $label,
                 '#date_format' => $date_format,
                 /*'#date_increment' => 1,*/
-                '#date_year_range' => '-1:+3',
-                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : 0,
+                '#date_year_range' => '-5:+3',
+                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL,
                 '#attributes' => array(
                   'class' => array(
                     $class,
@@ -286,8 +287,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#title' => $label,
                 '#date_format' => $date_format,
                 '#date_increment' => 1,
-                '#date_year_range' => '-1:+3',
-                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : 0,
+                '#date_year_range' => '-5:+3',
                 '#attributes' => array(
                   'class' => array(
                     $class,
@@ -295,8 +295,11 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 ),
               );
 
-              $date_to = !empty($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL;
-              if(!empty($date_to)){$element[$key]['#default_value'] = $date_to;}
+		
+		$date_to = !empty($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL;
+		if(!empty($date_to)){
+			$element[$key]['#default_value'] = $date_to;
+		}
               break;
           default:
             break;
@@ -335,8 +338,6 @@ function term_with_date_range_field_formatter_view($entity_type, $entity, $field
           '#prefix' => '<ul class="list-terms-with-dates">',
           '#suffix' => '</ul>',
         );
-
-        global $user;
         foreach ($items as $key => $item) {
           $tid = !empty($item['tid']) ? $item['tid'] : '';
 

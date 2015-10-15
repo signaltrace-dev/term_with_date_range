@@ -1,6 +1,5 @@
 name = Term with Date Range
 description = Custom compound field to associate a taxonomy term with a date range.
-package = Ecogig
 core = 7.x
 files[] = views/term_with_date_range.views.inc
 files[] = handlers/views_handler_field_term_with_date_range_tid.inc
