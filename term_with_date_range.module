@@ -175,6 +175,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
         'date_to_timestamp' => t('To'),
       );
 
+      $date = new DateTime();
       $date_format = !empty($instance['widget']['settings']['twdr_date_format']) ? $instance['widget']['settings']['twdr_date_format'] : 'm/d/Y';
       $date_select_type = !empty($instance['widget']['settings']['twdr_date_type']) ? $instance['widget']['settings']['twdr_date_type'] : 'date_select';
 
@@ -266,7 +267,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#date_format' => $date_format,
                 /*'#date_increment' => 1,*/
                 '#date_year_range' => '-5:+3',
-                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL,
+                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : $date->format('Y-m-d h:i:s'),
                 '#attributes' => array(
                   'class' => array(
                     $class,
@@ -288,6 +289,7 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#date_format' => $date_format,
                 '#date_increment' => 1,
                 '#date_year_range' => '-5:+3',
+                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : $date->format('Y-m-d h:i:s'),
                 '#attributes' => array(
                   'class' => array(
                     $class,
