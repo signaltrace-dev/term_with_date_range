@@ -20,11 +20,11 @@ class views_handler_field_term_with_date_range_date extends views_handler_field_
       $today = strtotime($date->format('Y-m-d 00:00:00'));
       if ($value >= $today) {
         // this value is still within today
-        return format_date($value, 'custom', 'g:i A');
+        //return format_date($value, 'custom', 'g:i A');
       }
       else {
         // this value is older than today
-        return format_date($value, 'custom', 'j M Y g:i A');
+        //return format_date($value, 'custom', 'j M Y g:i A');
       }
     //}
     // otherwise render the date using the normal date handler

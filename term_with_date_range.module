@@ -1,78 +1,14 @@
 <?php
 
+/**
+* Implements hook_init().
+*/
 function term_with_date_range_init() {
   drupal_add_css(drupal_get_path('module', 'term_with_date_range') . '/css/term_with_date_range.css', array('weight' => CSS_THEME));
-
-}
-
-function term_with_date_range_update_old_fields(){
-  $fields = term_with_date_range_get_fields();
-  foreach ($fields as $field) {
-    $tables = array(
-      _field_sql_storage_tablename($field),
-      _field_sql_storage_revision_tablename($field)
-    );
-    foreach ($tables as $table) {
-      $field_name = $field['field_name'];
-      $col_date_from = $field_name . '_date_from';
-      $col_date_to = $field_name . '_date_to';
-
-      $query = db_select($table, 't')
-        ->fields('t', array('entity_id', $col_date_from, $col_date_to));
-      $results = $query->execute();
-
-      foreach($results as $row){
-        $date_from = NULL;
-        $date_to = NULL;
-
-        if(!empty($row->field_participant_role_date_from)){
-          $date_from = DateTime::createFromFormat('Y-m-d H:i:s', $row->field_participant_role_date_from)->format('U');
-          db_update($table)
-            ->fields(array(
-              $field_name . '_date_from_timestamp' => $date_from,
-            ))
-            ->condition('entity_id', $row->entity_id)
-            ->execute();
-        }
-
-        if(!empty($row->field_participant_role_date_to)){
-          $date_to = DateTime::createFromFormat('Y-m-d H:i:s', $row->field_participant_role_date_to)->format('U');
-          db_update($table)
-            ->fields(array(
-              $field_name . '_date_to_timestamp' => $date_to,
-            ))
-            ->condition('entity_id', $row->entity_id)
-            ->execute();
-        }
-
-        if(!empty($row->field_student_type_date_from)){
-          $date_from = DateTime::createFromFormat('Y-m-d H:i:s', $row->field_student_type_date_from)->format('U');
-          db_update($table)
-            ->fields(array(
-              $field_name . '_date_from_timestamp' => $date_from,
-            ))
-            ->condition('entity_id', $row->entity_id)
-            ->execute();
-        }
-
-        if(!empty($row->field_student_type_date_to)){
-          $date_to = DateTime::createFromFormat('Y-m-d H:i:s', $row->field_student_type_date_to)->format('U');
-          db_update($table)
-            ->fields(array(
-              $field_name . '_date_to_timestamp' => $date_to,
-            ))
-            ->condition('entity_id', $row->entity_id)
-            ->execute();
-        }
-
-      }
-
-    }
-  }
 }
 
 /**
-* Implements hook_views_api
+* Implements hook_views_api().
 */
 function term_with_date_range_views_api(){
   return array(
@@ -99,6 +35,9 @@ function term_with_date_range_field_info() {
   );
 }
 
+/**
+* Implements hook_field_validate().
+*/
 function term_with_date_range_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors){
   if($field['type'] == 'term_with_date_range'){
     $date_from_label = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_label']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_label'] : t('Date From');
@@ -120,40 +59,32 @@ function term_with_date_range_field_validate($entity_type, $entity, $field, $ins
       }
 
       if(!empty($item['date_from_timestamp']) && !empty($item['date_to_timestamp'])){
-        $date_from = $item['date_from_timestamp'];
-        $date_to = $item['date_to_timestamp'];
-        $date_from_arr = explode('-', $date_from);
-        if(count($date_from_arr < 3)){
-          $date_from .= '-01';
-        }
+        $date_from = term_with_date_range_convert_to_unix($item['date_from_timestamp']);
+        $date_to = term_with_date_range_convert_to_unix($item['date_to_timestamp']);
 
-        $date_to_arr = explode('-', $date_to);
-        if(count($date_to_arr < 3)){
-          $date_to .= '-01';
-        }
-
-        $date_from = DateTime::createFromFormat('Y-m-d', $date_from);
-        $date_to = DateTime::createFromFormat('Y-m-d', $date_to);
-
-        if($date_from instanceof DateTime && $date_to instanceof DateTime){
-          if($date_from > $date_to){
-            $errors[$field['field_name']][$langcode][$delta][] = array(
-              'error' => 'date_invalid',
-              'message' => t('%name: %date_from cannot be greater than %date_to.', array('%name' => $instance['label'], '%date_from' => $date_from_label, '%date_to' => $date_to_label)),
-            );
-          }
+        if($date_from > $date_to){
+          $errors[$field['field_name']][$langcode][$delta][] = array(
+            'error' => 'date_invalid',
+            'message' => t('%name: %date_from cannot be greater than %date_to.', array('%name' => $instance['label'], '%date_from' => $date_from_label, '%date_to' => $date_to_label)),
+          );
         }
       }
     }
   }
 }
 
+/**
+* Implements hook_field_is_empty().
+*/
 function term_with_date_range_field_is_empty($item, $field){
   if($field['type'] == 'term_with_date_range'){
     return $item['tid'] == '_none';
   }
 }
 
+/**
+* Implements hook_field_widget_info().
+*/
 function term_with_date_range_field_widget_info(){
   return array(
     'term_with_date_range' => array(
@@ -179,8 +110,9 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
       $date_format = !empty($instance['widget']['settings']['twdr_date_format']) ? $instance['widget']['settings']['twdr_date_format'] : 'm/d/Y';
       $date_select_type = !empty($instance['widget']['settings']['twdr_date_type']) ? $instance['widget']['settings']['twdr_date_type'] : 'date_select';
 
+      // Each field that makes up the compound field can have its own widget display settings:
+      // Label, label display style, CSS class, wrapper CSS class
       foreach ($fields as $key => $label) {
-
         switch($key) {
           case 'tid':
             $vid = !empty($instance['widget']['settings']['fieldset_vocab']['term_with_date_range_vocab']) ? $instance['widget']['settings']['fieldset_vocab']['term_with_date_range_vocab'] : '';
@@ -209,50 +141,6 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
               ),
             );
             break;
-            /*
-          case 'date_from':
-            $style = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_style']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_style'] : '';
-            $class = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_class']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_class'] : '';
-            $wrapper_class = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_wrapper_class']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_wrapper_class'] : '';
-            $label = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_label']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_label'] : $label;
-
-            $element[$key] = array(
-              '#prefix' => '<div class="' . $wrapper_class . '">',
-              '#suffix' => '</div>',
-              '#type' => $date_select_type,
-              '#title' => $label,
-              '#date_format' => $date_format,
-              '#date_year_range' => '-5:+3',
-              '#default_value' => isset($items[$delta][$key]) ? $items[$delta][$key] : 0,
-              '#attributes' => array(
-                'class' => array(
-                  $class,
-                ),
-              ),
-            );
-            break;
-          case 'date_to':
-            $style = !empty($instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_style']) ? $instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_style'] : '';
-            $class = !empty($instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_class']) ? $instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_class'] : '';
-            $wrapper_class = !empty($instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_wrapper_class']) ? $instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_wrapper_class'] : '';
-            $label = !empty($instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_label']) ? $instance['widget']['settings']['fieldset_date_to']['term_with_date_range_date_to_label'] : $label;
-
-            $element[$key] = array(
-              '#prefix' => '<div class="' . $wrapper_class . '">',
-              '#suffix' => '</div>',
-              '#type' => $date_select_type,
-              '#title' => $label,
-              '#date_format' => $date_format,
-              '#date_increment' => 1,
-              '#date_year_range' => '-5:+3',
-              '#default_value' => isset($items[$delta][$key]) ? $items[$delta][$key] : 0,
-              '#attributes' => array(
-                'class' => array(
-                  $class,
-                ),
-              ),
-            );
-            break;*/
             case 'date_from_timestamp':
               $style = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_style']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_style'] : '';
               $class = !empty($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_class']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_class'] : '';
@@ -265,9 +153,8 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#type' => $date_select_type,
                 '#title' => $label,
                 '#date_format' => $date_format,
-                /*'#date_increment' => 1,*/
                 '#date_year_range' => '-5:+3',
-                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : $date->format('Y-m-d h:i:s'),
+                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL,
                 '#attributes' => array(
                   'class' => array(
                     $class,
@@ -289,19 +176,18 @@ function term_with_date_range_field_widget_form(&$form, &$form_state, $field, $i
                 '#date_format' => $date_format,
                 '#date_increment' => 1,
                 '#date_year_range' => '-5:+3',
-                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : $date->format('Y-m-d h:i:s'),
+                '#default_value' => isset($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL,
                 '#attributes' => array(
                   'class' => array(
                     $class,
                   ),
                 ),
               );
-
 		
-		$date_to = !empty($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL;
-		if(!empty($date_to)){
-			$element[$key]['#default_value'] = $date_to;
-		}
+		          $date_to = !empty($items[$delta][$key]) ? format_date($items[$delta][$key], 'custom', 'Y-m-d h:i:s') : NULL;
+          		if(!empty($date_to)){
+          			$element[$key]['#default_value'] = $date_to;
+          		}
               break;
           default:
             break;
@@ -335,27 +221,35 @@ function term_with_date_range_field_formatter_view($entity_type, $entity, $field
   if (!empty($node)) {
     switch ($display['type']) {
       case 'term_with_date_range':
-        $element['term_list'] = array(
-          '#type' => 'markup',
-          '#prefix' => '<ul class="list-terms-with-dates">',
-          '#suffix' => '</ul>',
-        );
-        foreach ($items as $key => $item) {
-          $tid = !empty($item['tid']) ? $item['tid'] : '';
+        // Only display field if it has a value defined (associated term)
+        if(!empty($items[0]['tid'])){
+          $element['term_list'] = array(
+            '#type' => 'markup',
+            '#prefix' => '<ul class="list-terms-with-dates">',
+            '#suffix' => '</ul>',
+          );
 
-          $date_from_timestamp = !empty($item['date_from_timestamp']) ? DateTime::createFromFormat('U', $item['date_from_timestamp']) : NULL;
-          $date_to_timestamp = !empty($item['date_to_timestamp']) ? DateTime::createFromFormat('U', $item['date_to_timestamp']) : NULL;
+          // Default to "medium" date type/format defined for site unless a format is defined at the field level
+          $display_format = !empty($instance['widget']['settings']['twdr_date_format_display']) ? $instance['widget']['settings']['twdr_date_format_display'] : '';
+          $display_type = !empty($display_format) ? 'custom' : 'medium';
 
-          $term = taxonomy_term_load($tid);
+          foreach ($items as $key => $item) {
+            $tid = !empty($item['tid']) ? $item['tid'] : '';
+            $term = taxonomy_term_load($tid);
 
-          if(!empty($term)){
-            $date_from_timestamp = $date_from_timestamp instanceof DateTime ? $date_from_timestamp->format('M Y') : 'N/A';
-            $date_to_timestamp = $date_to_timestamp instanceof DateTime ? $date_to_timestamp->format('M Y') : t('Present');
+            if(!empty($term)){
+              $str_date_from = !empty($item['date_from_timestamp']) ? format_date($item['date_from_timestamp'], $display_type, $display_format) : NULL;
+              $str_date_to = !empty($item['date_to_timestamp']) ? format_date($item['date_to_timestamp'], $display_type, $display_format) : NULL;
 
-            $element[$key] = array(
-              '#type' => 'markup',
-              '#markup' => $term->name . ' (' . $date_from_timestamp . ' - ' . $date_to_timestamp . ')',
-            );
+              // Some default values in case our values are empty
+              $str_date_from = !empty($str_date_from) ? $str_date_from : 'N/A';
+              $str_date_to = !empty($str_date_to) ? $str_date_to : t('Present');
+
+              $element[$key] = array(
+                '#type' => 'markup',
+                '#markup' => t($term->name) . ' (' . $str_date_from . ' - ' . $str_date_to . ')',
+              );
+            }
           }
         }
         break;
@@ -402,6 +296,9 @@ function term_with_date_range_property_info_callback(&$info, $entity_type, $fiel
   );
 }
 
+/**
+* Implements hook_field_widget_settings_form().
+*/
 function term_with_date_range_field_widget_settings_form($field, $instance){
   $options = array();
   $v = taxonomy_get_vocabularies();
@@ -409,6 +306,7 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
     $options[$item->vid] = $item->name;
   }
 
+  // Available display options for widget labels
   $style_options = array(
     'inline' => 'Inline',
     'inline-block' => 'Inline Block',
@@ -432,8 +330,7 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
     '#title' => t('Date To'),
   );
 
-
-  /* Date Format Settings */
+  // Date Selection Settings
   $element['twdr_date_type'] = array(
     '#type' => 'select',
     '#title' => t('Date Select Type'),
@@ -445,16 +342,22 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
     '#default_value' => isset($instance['widget']['settings']['twdr_date_type']) ? $instance['widget']['settings']['twdr_date_type'] : 'date_select',
   );
 
-
+  // Date Format Settings
   $element['twdr_date_format'] = array(
     '#type' => 'textfield',
-    '#title' => t('Date Format'),
-    '#description' => t('The date format used for the date range.'),
+    '#title' => t('Widget Date Format'),
+    '#description' => t('The date format used for the date range widget.'),
     '#default_value' => isset($instance['widget']['settings']['twdr_date_format']) ? $instance['widget']['settings']['twdr_date_format'] : 'm/d/Y',
   );
 
+  $element['twdr_date_format_display'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Display Date Format'),
+    '#description' => t('The date format used for the date range front-end display.'),
+    '#default_value' => isset($instance['widget']['settings']['twdr_date_format_display']) ? $instance['widget']['settings']['twdr_date_format_display'] : NULL,
+  );
 
-  /* Vocabulary Settings */
+  // Vocabulary Settings
   $element['fieldset_vocab']['term_with_date_range_vocab'] = array(
     '#type' => 'select',
     '#title' => t('Term vocabulary'),
@@ -488,7 +391,7 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
     '#default_value' => isset($instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_wrapper_class']) ? $instance['widget']['settings']['fieldset_vocab']['term_with_date_range_dropdown_wrapper_class'] : '',
   );
 
-  /* Date From Settings */
+  // Date From Settings
   $element['fieldset_date_from']['term_with_date_range_date_from_label'] = array(
     '#type' => 'textfield',
     '#title' => t('Date From element label'),
@@ -515,7 +418,7 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
     '#default_value' => isset($instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_wrapper_class']) ? $instance['widget']['settings']['fieldset_date_from']['term_with_date_range_date_from_wrapper_class'] : '',
   );
 
-  /* Date To Settings */
+  // Date To Settings
   $element['fieldset_date_to']['term_with_date_range_date_to_label'] = array(
     '#type' => 'textfield',
     '#title' => t('Date To element label'),
@@ -550,7 +453,6 @@ function term_with_date_range_field_widget_settings_form($field, $instance){
 */
 function term_with_date_range_form_alter(&$form, &$form_state, $form_id) {
   switch ($form_id) {
-
     case 'taxonomy_form_term':
       if (isset($form['delete'])) {
         $tid = $form['#term']->tid;
@@ -595,81 +497,49 @@ function term_with_date_range_form_alter(&$form, &$form_state, $form_id) {
   }
 }
 
+/**
+* Implements hook_multiple_field_remove_button_field_widgets_alter()
+* Hook for Multiple Fields Remove Button (if enabled) - https://www.drupal.org/project/multiple_fields_remove_button
+*/
 function term_with_date_range_multiple_field_remove_button_field_widgets_alter(&$fieldwidgets) {
   array_push($fieldwidgets, 'term_with_date_range');
 }
 
+/**
+* Implements hook_field_presave().
+* Date field values are in Y-m-d format by default - convert to UNIX timestamp format.
+*/
 function term_with_date_range_field_presave($entity_type, $entity, $field, $instance, $langcode, &$items){
-  $date_format = !empty($instance['widget']['settings']['twdr_date_format']) ? $instance['widget']['settings']['twdr_date_format'] : '';
-  if(!empty($date_format)){
+  foreach ($items as $delta => $item) {
+    $items[$delta]['date_from_timestamp'] = !empty($item['date_from_timestamp']) ? term_with_date_range_convert_to_unix($item['date_from_timestamp']) : NULL;
+    $items[$delta]['date_to_timestamp'] = !empty($item['date_to_timestamp']) ? term_with_date_range_convert_to_unix($item['date_to_timestamp']) : NULL;
 
-    foreach ($items as $delta => $item) {
-      $date_from = !empty($item['date_from']) ? $item['date_from'] : '';
-      $date_to = !empty($item['date_to']) ? $item['date_to'] : '';
-      if(!empty($date_from)){
-        $date_from_arr = explode('-', $date_from);
-        if(count($date_from_arr < 3)){
-          $date_from .= '-01';
-        }
-        $date_from = DateTime::createFromFormat('Y-m-d', $date_from);
-        if($date_from instanceof DateTime){
-
-          $date_from = $date_from->format('Y-m-d H:i:s');
-          $items[$delta]['date_from'] = $date_from;
-        }
-      }
-
-      if(!empty($date_to)){
-        $date_to_arr = explode('-', $date_to);
-        if(count($date_to_arr < 3)){
-          $date_to .= '-01';
-        }
-        $date_to = DateTime::createFromFormat('Y-m-d', $date_to);
-
-        if($date_to instanceof DateTime){
-          $date_to = $date_to->format('Y-m-d H:i:s');
-          $items[$delta]['date_to'] = $date_to;
-
-        }
-      }
-
-      $date_from_timestamp = !empty($item['date_from_timestamp']) ? $item['date_from_timestamp'] : '';
-      $date_to_timestamp = !empty($item['date_to_timestamp']) ? $item['date_to_timestamp'] : '';
-      if(!empty($date_from_timestamp)){
-        $date_from_arr = explode('-', $date_from_timestamp);
-        if(count($date_from_arr < 3)){
-          $date_from_timestamp .= '-01';
-        }
-        $date_from_timestamp = DateTime::createFromFormat('Y-m-d', $date_from_timestamp);
-        if($date_from_timestamp instanceof DateTime){
-
-          $date_from_timestamp = $date_from_timestamp->format('U');
-          $items[$delta]['date_from_timestamp'] = $date_from_timestamp;
-        }
-      }
-
-      if(!empty($date_to_timestamp)){
-        $date_to_arr = explode('-', $date_to_timestamp);
-        if(count($date_to_arr < 3)){
-          $date_to_timestamp .= '-01';
-        }
-        $date_to_timestamp = DateTime::createFromFormat('Y-m-d', $date_to_timestamp);
-
-        if($date_to_timestamp instanceof DateTime){
-          $date_to_timestamp = $date_to_timestamp->format('U');
-          $items[$delta]['date_to_timestamp'] = $date_to_timestamp;
-
-        }
-      }
-
-
-    }
   }
-
 }
 
 /**
-  * Returns all fields created on the system of the type defined in term_with_date_range module.
+* Converts date strings (default Y-m-d format) to Unix timestamps.
+*/
+function term_with_date_range_convert_to_unix($str_date, $format = 'Y-m-d'){
+  $timestamp = NULL;
+  if(!empty($str_date)){
+    $arr_date = explode('-', $str_date);
+    
+    // In case we're missing the day
+    if(count($arr_date) < 3){
+      $str_date .= '-01';
+    }
+
+    $date = DateTime::createFromFormat($format, $str_date);
+    if($date instanceof DateTime){
+      $timestamp = $date->format('U');
+    }
+  }
+  return $timestamp;
+}
+
+/**
+  * Returns all fields of types defined in this module.
   */
 function term_with_date_range_get_fields() {
   $types = array_keys(term_with_date_range_field_info());
