@@ -13,6 +13,8 @@ This module implements a compound field that allows you to associate a taxonomy 
 ## CONFIGURATION 
 * Add field of type "Term With Date Range" to a content type
 
+* Select a vocabulary to associate with the field on the field settings page
+
 * (Optional) Configure labels and styling
 	-"Date From" and "Date To" both have options to allow for setting the label text, alignment, and CSS.
 
